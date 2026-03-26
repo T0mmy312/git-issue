@@ -18,8 +18,13 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/out/)
 
 add_executable(git-issue 
   src/main.cpp
-  src/cmd_util.cpp
-  src/commands.cpp
+  src/util.cpp
+
+  src/commands/addCommand.cpp
+  src/commands/baseCommand.cpp
+  src/commands/closeCommand.cpp
+  src/commands/initCommand.cpp
+  src/commands/removeCommand.cpp
 )
 target_include_directories(git-issue PRIVATE include/)
 target_compile_definitions(git-issue PUBLIC GIT_ISSUE_VERSION="v0.1")
@@ -30,6 +35,12 @@ CPMAddPackage(
   VERSION 3.3.1
 )
 
+CPMAddPackage(
+  NAME json
+  GITHUB_REPOSITORY nlohmann/json
+  VERSION 3.12.0
+)
+
 set(REPROC++ ON)
 CPMAddPackage(
   NAME reproc
@@ -37,4 +48,4 @@ CPMAddPackage(
   VERSION 14.2.5
 )
 
-target_link_libraries(git-issue PRIVATE cxxopts reproc++)
+target_link_libraries(git-issue PRIVATE cxxopts nlohmann_json::nlohmann_json reproc++)
