@@ -20,7 +20,8 @@ int add_command(int argc, char** argv) {
     options.add_options()
         ("h", "Prints this message")
         ("t,title", "Title of the issue", cxxopts::value<std::string>())
-        ("d,desc", "The description of the issue", cxxopts::value<std::string>()->default_value(""));
+        ("d,desc", "The description of the issue", cxxopts::value<std::string>()->default_value(""))
+        ("i,input", "Uses the default git editor to get inputs for the desc and title!");
     
     cxxopts::ParseResult result = options.parse(argc, argv);
 
@@ -29,7 +30,7 @@ int add_command(int argc, char** argv) {
         return 0;
     }
     
-    if (!result.contains("title")) {
+    if (!result.contains("title") && !result.contains("input")) {
         std::cout << "Fatal: command 'git issue add' requires a title!" << std::endl;
         std::cout << options.help() << std::endl;
         return -1;
@@ -79,8 +80,17 @@ int add_command(int argc, char** argv) {
     }
 
     nlohmann::json issue;
-    issue["title"] = result["title"].as<std::string>();
-    issue["desc"] = result["desc"].as<std::string>();
+    
+    if (result.contains("input") && !result.contains("title"))
+        issue["title"] = getInput(gitRoot, "# lines with # as the first char will be ignored\n# Please input the title for your issue:");
+    else
+        issue["title"] = result["title"].as<std::string>();
+
+    if (result.contains("input") && !result.contains("desc"))
+        issue["desc"] = getInput(gitRoot, "# lines with # as the first char will be ignored\n# Please input the description for your issue:");
+    else
+        issue["desc"] = result["desc"].as<std::string>();
+
     issue["issue_num"] = issueNumber;
     issue["open"] = true;
     issue["commit_hashes"] = {};
@@ -100,7 +110,7 @@ int add_command(int argc, char** argv) {
     }
     file.close();
 
-    std::cout << "added issue #" << issueNumber << ": " << result["title"].as<std::string>() << std::endl;
+    std::cout << "added issue #" << issueNumber << ": " << issue["title"] << std::endl;
 
     return 0;
 }
