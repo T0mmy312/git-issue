@@ -1,7 +1,7 @@
+#include "nlohmann/json_fwd.hpp"
 #include <commands.h>
 #include <cstdint>
 #include <cxxopts.hpp>
-#include <fstream>
 #include <string>
 #include <util.h>
 #include <iostream>
@@ -58,24 +58,7 @@ int remove_command(int argc, char** argv) {
     else {
         std::string title = result["title"].as<std::string>();
         std::filesystem::directory_iterator iterator(gitRoot / "issues");
-        std::vector<std::tuple<std::filesystem::path, uint64_t, std::string>> matches;
-        for (const std::filesystem::directory_entry& file : iterator) {
-            if (file.path().filename() == "free_issue_num.txt")
-                continue;
-            if (!file.is_regular_file())
-                continue;
-            std::ifstream fst(file.path());
-            if (!fst.good() || !fst.is_open()) {
-                fst.close();
-                continue;
-            }
-            nlohmann::json data;
-            try { data = nlohmann::json::parse(fst); } catch (...) { continue; }
-            if (!data.contains("title") || !data.contains("issue_num") || !data.contains("desc"))
-                continue;
-            if (data["title"] == title)
-                matches.push_back(std::tuple<std::filesystem::path, uint64_t, std::string>(file.path(), data["issue_num"], data["desc"]));
-        }
+        std::vector<std::pair<std::filesystem::path, nlohmann::json>> matches = getIssuesWithTitle(gitRoot, title);
 
         if (matches.size() == 0) {
             std::cout << "Could not find issue with title: '" << title << "'" << std::endl;
@@ -84,9 +67,11 @@ int remove_command(int argc, char** argv) {
         else if (matches.size() > 1) {
             std::cout << "git issue remove matched multiple issues with the same title." << std::endl;
             std::cout << "Please remove the correct one using git issue remove -n <issue number>" << std::endl;
-            for (const std::tuple<std::filesystem::path, uint64_t, std::string>& issue : matches) {
-                std::cout << "Issue #" << std::get<1>(issue) << ":\n  ";
-                for (char a : std::get<2>(issue)) {
+            for (const std::pair<std::filesystem::path, nlohmann::json>& issue : matches) {
+                if (!issue.second.contains("issue_num") && !issue.second.contains("desc"))
+                    continue;
+                std::cout << "Issue #" << issue.second["issue_num"] << ":\n  ";
+                for (char a : std::string(issue.second["desc"])) {
                     if (a == '\n')
                         std::cout << "\n  ";
                     else
@@ -97,11 +82,19 @@ int remove_command(int argc, char** argv) {
             return 0;
         }
 
-        if (std::filesystem::remove_all(std::get<0>(matches[0]))) {
-            std::cout << "Successfully removed issue #" << std::get<1>(matches[0]) << std::endl;
+        if (std::filesystem::remove_all(matches[0].first)) {
+            if (!matches[0].second.contains("issue_num")) {
+                std::cout << "Successfully removed issue!" << std::endl;
+                return 0;
+            }
+            std::cout << "Successfully removed issue #" << matches[0].second["issue_num"] << std::endl;
             return 0;
         } else {
-            std::cout << "Could not remove issue #" << std::get<1>(matches[0]) << std::endl;
+            if (!matches[0].second.contains("issue_num")) {
+                std::cout << "Could not remove issue!";
+                return -1;
+            }
+            std::cout << "Could not remove issue #" << matches[0].second["issue_num"] << std::endl;
             return -1;
         }
     }

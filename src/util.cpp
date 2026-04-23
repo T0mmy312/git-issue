@@ -9,6 +9,8 @@
 #include <utility>
 #include <fstream>
 #include <sstream>
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 
 std::filesystem::path getGitRoot() {
     std::string output;
@@ -145,4 +147,46 @@ std::string getInput(std::filesystem::path gitRoot, std::string prompt) {
     tempFileRead.close();
     std::filesystem::remove_all(gitRoot / "GIT_ISSUE_TEMP_INPUT.txt");
     return ss.str();
+}
+
+std::vector<std::pair<std::filesystem::path, nlohmann::json>> getIssuesWithTitle(std::filesystem::path gitRoot, std::string title) {
+    std::filesystem::directory_iterator iterator(gitRoot / "issues");
+    std::vector<std::pair<std::filesystem::path, nlohmann::json>> matches;
+    for (const std::filesystem::directory_entry& file : iterator) {
+        if (file.path().filename() == "free_issue_num.txt")
+            continue;
+        if (!file.is_regular_file())
+            continue;
+        std::ifstream fst(file.path());
+        if (!fst.good() || !fst.is_open()) {
+            fst.close();
+            continue;
+        }
+        nlohmann::json data;
+        try { data = nlohmann::json::parse(fst); } catch (...) { continue; }
+        if (!data.contains("title"))
+            continue;
+        if (data["title"] == title)
+            matches.push_back(std::pair<std::filesystem::path, nlohmann::json>(file.path(), data));
+    }
+    return matches;
+}
+
+nlohmann::json getJson(std::filesystem::path file) {
+    if (!std::filesystem::exists(file))
+        throw std::runtime_error("Fatal: given file does not exsist!");
+
+    std::ifstream jsonFile(file);
+    if (!jsonFile.is_open() || !jsonFile.good()) {
+        jsonFile.close();
+        throw std::runtime_error("Fatal: Could not open " + (std::string)file + "!");
+    }
+    nlohmann::json data;
+    try { data = nlohmann::json::parse(jsonFile); }
+    catch (std::exception e) {
+        throw std::runtime_error("Fatal: json parse error: " + std::string(e.what()));
+    }
+    jsonFile.close();
+
+    return data;
 }
